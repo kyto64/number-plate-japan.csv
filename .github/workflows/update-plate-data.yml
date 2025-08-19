@@ -1,0 +1,87 @@
+name: Update Japanese License Plate Data
+
+on:
+  schedule:
+    # 毎週日曜日の午前9時（JST）に実行
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+    # 手動実行も可能
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Configure Git
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+
+    - name: Install dependencies
+      run: |
+        pip install requests beautifulsoup4 pandas lxml html5lib
+
+    - name: Fetch and compare data using MediaWiki API
+      id: check-data
+      run: |
+        python -m scripts.fetch_wiki_data
+
+    - name: Create Pull Request if changes detected
+      if: steps.check-data.outputs.changes == 'true'
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: "自動更新: ナンバープレート登録地名データの更新"
+        title: "🚗 ナンバープレート登録地名データの自動更新"
+        body: |
+          ## 📋 概要
+
+          MediaWiki APIを使用してWikipediaの「日本のナンバープレート一覧」ページから新しいデータを検出し、CSVファイルを自動更新しました。
+
+          ## 🔄 変更内容
+
+          ${{ steps.check-data.outputs.changes-summary }}
+
+          ## 📅 データソース
+
+          - **取得日時**: ${{ steps.check-data.outputs.fetch-time }}
+          - **Wikipedia最終更新**: ${{ steps.check-data.outputs.wiki-last-modified }}
+          - **Wikipedia最終更新者**: ${{ steps.check-data.outputs.wiki-last-user }}
+          - **ソースURL**: https://ja.wikipedia.org/wiki/日本のナンバープレート一覧
+          - **API使用**: MediaWiki API (https://ja.wikipedia.org/w/api.php)
+
+          ## ✅ 確認事項
+
+          - [ ] 新しい登録地名が正しく追加されている
+          - [ ] 読み仮名が適切に設定されている
+          - [ ] 都道府県と運輸支局の情報が正確である
+          - [ ] CSVフォーマットが維持されている
+
+          ---
+
+          この変更は自動スクリプトにより生成されました。内容を確認してからマージしてください。
+        branch: auto-update-plate-data
+        delete-branch: true
+        committer: GitHub Actions <actions@github.com>
+        author: GitHub Actions <actions@github.com>
+
+    - name: Comment on no changes
+      if: steps.check-data.outputs.changes == 'false'
+      run: |
+        echo "変更は検出されませんでした。CSVファイルは最新の状態です。"
