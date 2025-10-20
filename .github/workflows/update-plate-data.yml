@@ -42,6 +42,29 @@ jobs:
       run: |
         python -m scripts.fetch_wiki_data
 
+    - name: Update last check timestamp with changes
+      if: steps.check-data.outputs.changes == 'true'
+      run: |
+        echo "データに変更が検出されました。最終確認日を更新します。"
+
+        # 現在の日時を取得（JST）
+        CURRENT_TIME=$(TZ='Asia/Tokyo' date '+%Y-%m-%d %H:%M:%S JST')
+
+        # LAST_CHECK.mdファイルを更新
+        cat > LAST_CHECK.md << EOF
+        # 最終データ確認日
+
+        このファイルは自動更新スクリプトによって維持されます。
+
+        **最終確認日時**: ${CURRENT_TIME}
+        **確認結果**: データ変更を検出してプルリクエストを作成
+        **データソース**: https://ja.wikipedia.org/wiki/日本のナンバープレート一覧
+
+        EOF
+
+        # 変更をステージング
+        git add LAST_CHECK.md
+
     - name: Create Pull Request if changes detected
       if: steps.check-data.outputs.changes == 'true'
       uses: peter-evans/create-pull-request@v5
@@ -81,7 +104,32 @@ jobs:
         committer: GitHub Actions <actions@github.com>
         author: GitHub Actions <actions@github.com>
 
-    - name: Comment on no changes
+    - name: Update last check timestamp
       if: steps.check-data.outputs.changes == 'false'
       run: |
-        echo "変更は検出されませんでした。CSVファイルは最新の状態です。"
+        echo "変更は検出されませんでした。最終確認日を更新します。"
+
+        # 現在の日時を取得（JST）
+        CURRENT_TIME=$(TZ='Asia/Tokyo' date '+%Y-%m-%d %H:%M:%S JST')
+
+        # LAST_CHECK.mdファイルを更新
+        cat > LAST_CHECK.md << EOF
+        # 最終データ確認日
+
+        このファイルは自動更新スクリプトによって維持されます。
+
+        **最終確認日時**: ${CURRENT_TIME}
+        **確認結果**: データに変更なし
+        **データソース**: https://ja.wikipedia.org/wiki/日本のナンバープレート一覧
+
+        EOF
+
+        # 変更をコミット
+        git add LAST_CHECK.md
+        if git diff --staged --quiet; then
+          echo "最終確認日に変更がありません。"
+        else
+          git commit -m "🤖 最終確認日を更新: ${CURRENT_TIME} (変更なし)"
+          git push origin main
+          echo "最終確認日を更新しました: ${CURRENT_TIME}"
+        fi
