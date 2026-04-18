@@ -35,7 +35,13 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install requests beautifulsoup4 pandas lxml html5lib
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Audit dependencies (pip-audit)
+      run: |
+        pip install pip-audit
+        pip-audit -r requirements.txt
 
     - name: Fetch and compare data using MediaWiki API
       id: check-data
